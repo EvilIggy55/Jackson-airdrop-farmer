@@ -39,11 +39,11 @@ Run: `git --version`
   - Windows: Tell me to download Git for Windows from git-scm.com.
   - Wait for confirmation before continuing.
 
-**Check 3: Railway CLI**
-Run: `railway --version`
+**Check 3: PM2** (process manager that keeps the farm running 24/7)
+Run: `pm2 --version`
 
-- If Railway CLI is missing: run `npm install -g @railway/cli`
-- If that fails with a permissions error on Mac/Linux: run `sudo npm install -g @railway/cli`
+- If PM2 is missing: run `npm install -g pm2`
+- If that fails with a permissions error on Mac/Linux: run `sudo npm install -g pm2`
 - Confirm it's installed before continuing.
 
 Once all three checks pass, print:
@@ -52,7 +52,7 @@ Once all three checks pass, print:
 ✅ Prerequisites verified:
    Node.js: [version]
    Git: [version]
-   Railway CLI: [version]
+   PM2: [version]
 
    Ready to set up Jackson Airdrop Farm.
 ```
@@ -312,72 +312,69 @@ If the test message fails:
 
 ---
 
-## STEP 9 — Deploy to Railway (Cloud Hosting)
+## STEP 9 — Deploy to a Hostinger VPS (Cloud Hosting)
 
-This makes your farmer run 24/7 in the cloud, even when your computer is off.
+This makes your farmer run 24/7 in the cloud, even when your computer is off. A Hostinger VPS is a small always-on server you control; the cheapest KVM plan (~$5/mo) is plenty.
 
-**Step 9a — Create a Railway account (if you don't have one):**
+**Step 9a — Get a VPS (if you don't have one):**
 
-Tell the user: "First, create a free Railway account here: https://railway.com?referralCode=BLrK89 — come back when you've signed up."
+Tell the user: "Grab the cheapest KVM plan here: https://hostinger.com/lewisjackson10 — Hostinger will give you a server IP and root password. Paste me the IP and password when you have them."
 
 Wait for them to confirm before continuing.
 
-**Step 9b — Log in to Railway:**
+**Step 9b — Connect and install:**
 
 ```bash
-railway login
+ssh root@THEIR_VPS_IP
+apt update && apt install -y nodejs npm git
+git clone https://github.com/jackson-video-resources/Jackson-airdrop-farmer.git jackson-airdrop-farm
+cd jackson-airdrop-farm && npm install
+npm install -g pm2
 ```
 
-This opens a browser window. Log in with GitHub or email. Come back when done.
+If they prefer local hosting instead, tell me and I'll switch to the PM2 setup below.
 
-If Railway login fails or you prefer local hosting, tell me and I'll switch to the PM2 setup instead.
+**Step 9c — Put the secrets on the VPS:**
 
-**Step 9b — Create a Railway project:**
+Recreate the `.env` on the VPS with the same values, then copy the encrypted wallet file up from the user's machine:
 
 ```bash
-railway init
+# on the VPS, create .env with:
+#   ENCRYPTION_KEY=...  TELEGRAM_BOT_TOKEN=...  TELEGRAM_CHAT_ID=...  NODE_ENV=production
+# then from the user's machine:
+scp data/wallets.enc.json root@THEIR_VPS_IP:~/jackson-airdrop-farm/data/
 ```
 
-When prompted for a project name, use: `jackson-airdrop-farm`
+`wallets.enc.json` is the AES-256-GCM encrypted wallet file (not raw private keys). It and the encryption key live only in the `.env` on the user's own VPS.
 
-**Step 9c — Set environment variables:**
+**Step 9d — Start it 24/7:**
 
 ```bash
-railway variables set ENCRYPTION_KEY="$(grep ENCRYPTION_KEY .env | cut -d= -f2)"
-railway variables set TELEGRAM_BOT_TOKEN="$(grep TELEGRAM_BOT_TOKEN .env | cut -d= -f2)"
-railway variables set TELEGRAM_CHAT_ID="$(grep TELEGRAM_CHAT_ID .env | cut -d= -f2)"
-railway variables set NODE_ENV=production
-WALLET_DATA=$(base64 < data/wallets.enc.json | tr -d '\n')
-railway variables set WALLET_DATA_B64="$WALLET_DATA"
+pm2 start ecosystem.config.cjs
+pm2 save && pm2 startup
 ```
 
-**Step 9d — Deploy:**
+Run the command `pm2 startup` prints. This takes under a minute.
 
-```bash
-railway up -d
-```
+If it fails to start, run `pm2 logs jackson-airdrop-farm` and report what you see.
 
-Watch the output. This takes 1–3 minutes.
-
-If the deployment fails, run `railway logs` and report what you see.
-
-Once deployed, print:
+Once running, print:
 
 ```
-✅ Deployed to Railway successfully.
+✅ Deployed to your Hostinger VPS successfully.
    Your farmer will run automatically at:
      8:00 AM UTC
      2:00 PM UTC
      8:00 PM UTC
 
-   Check status anytime: railway logs
+   Check status anytime: pm2 logs jackson-airdrop-farm
 ```
 
 ---
 
 ## STEP 9 (ALTERNATIVE) — Run Locally with PM2
 
-If Railway isn't working or you prefer your own machine:
+If you'd rather run it on your own machine instead of a VPS:
 
 ```bash
 npm install -g pm2
@@ -445,7 +442,6 @@ WHAT HAPPENS NEXT:
 TO CHECK IN:
   • Telegram: watch for farming summaries
   • Balances: npx tsx src/check-all-balances.ts
-  • Logs (Railway): railway logs
   • Logs (PM2): pm2 logs jackson-airdrop-farm
 
 SECURITY REMINDERS:
