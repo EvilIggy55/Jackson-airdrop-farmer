@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import { log } from "../utils/logger.js";
 import { formatEth } from "../utils/gas.js";
 import { getChain } from "../chains/index.js";
+import { withTimeout } from "../utils/timeout.js";
 
 const RELAY_API = "https://api.relay.link";
 const ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -73,6 +74,7 @@ export async function bridgeViaRelay(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(quoteBody),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!quoteRes.ok) {
@@ -110,13 +112,21 @@ export async function bridgeViaRelay(
         `Sending Relay bridge tx to ${txData.to.slice(0, 12)}... value: ${formatEth(txValue)} ETH`,
       );
 
-      const tx = await signer.sendTransaction({
-        to: txData.to,
-        value: txValue,
-        data: txData.data,
-      });
+      const tx = await withTimeout(
+        signer.sendTransaction({
+          to: txData.to,
+          value: txValue,
+          data: txData.data,
+        }),
+        90_000,
+        `${from} → ${dest} broadcast`,
+      );
 
-      const receipt = await tx.wait();
+      const receipt = await withTimeout(
+        tx.wait(),
+        180_000,
+        `${from} → ${dest} confirm`,
+      );
       lastTxHash = receipt!.hash;
       log.tx(lastTxHash, `Relay bridge ETH ${from} → ${dest}`);
     }

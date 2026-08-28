@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { ethers } from "ethers";
+import { withTimeout } from "./utils/timeout.js";
 
 const { loadWallets, getPrivateKey } = await import("./wallet-manager.js");
 
@@ -18,12 +19,7 @@ const t0 = Date.now();
 const step = (msg: string) =>
   console.log(`[+${String(((Date.now() - t0) / 1000).toFixed(1)).padStart(6)}s] ${msg}`);
 
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`TIMEOUT after ${ms / 1000}s: ${label}`)), ms)),
-  ]);
-}
+
 
 const wallets = loadWallets();
 const w00 = wallets[0];
