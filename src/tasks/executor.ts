@@ -186,7 +186,10 @@ export async function executeTask(
         if (tokenInSymbol.toUpperCase() !== "ETH") {
           const erc20 = new ethers.Contract(
             tokenIn,
-            ["function balanceOf(address) view returns (uint256)"],
+            [
+              "function balanceOf(address) view returns (uint256)",
+              "function decimals() view returns (uint8)",
+            ],
             signer,
           );
           const balance: bigint = await erc20.balanceOf(
@@ -196,7 +199,13 @@ export async function executeTask(
             throw new Error(`No ${tokenInSymbol} balance to swap on ${chain}`);
           }
           amount = balance; // swap entire balance back
-          log.info(`Using actual ${tokenInSymbol} balance: ${balance}`);
+          const dec = await erc20
+            .decimals()
+            .then(Number)
+            .catch(() => 18);
+          log.info(
+            `Using actual ${tokenInSymbol} balance: ${ethers.formatUnits(balance, dec)}`,
+          );
         }
 
         if (protocol === "uniswap-v3") {
