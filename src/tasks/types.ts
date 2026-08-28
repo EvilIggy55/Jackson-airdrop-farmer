@@ -3,6 +3,7 @@ export type TaskType =
   | "bridge_from_l2"
   | "bridge_orbiter"
   | "bridge_stargate"
+  | "bridge_relay"
   | "dex_swap"
   | "provide_liquidity"
   | "remove_liquidity"

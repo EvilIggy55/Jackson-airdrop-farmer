@@ -8,6 +8,7 @@ import { swapAmbient } from "../protocols/ambient.js";
 import { swapVelodrome } from "../protocols/velodrome.js";
 import { bridgeToL2 } from "../protocols/bridge-official.js";
 import { bridgeOrbiter } from "../protocols/orbiter-bridge.js";
+import { bridgeViaRelay } from "../protocols/bridge-unichain.js";
 import { bridgeStargate } from "../protocols/stargate.js";
 import { deployMinimalContract } from "../protocols/deploy-contract.js";
 import { supplyETH, withdrawETH } from "../protocols/aave-v3.js";
@@ -143,7 +144,9 @@ export async function executeTask(
       case "unwrap_eth": {
         const signer = getSigner(task.chain, privateKey);
         let amount = (task.params.amountWei as bigint) ?? DEFAULT_AMOUNT;
-        // Check actual WETH balance to avoid "burn amount exceeds balance"
+        // Unwrap the whole position. The wrap and unwrap legs each draw their
+        // own jitter, so unwrapping a jittered amount strands the difference as
+        // WETH every round-trip; draining the balance keeps the pair closed.
         const wethAddr = WETH_ADDRESSES[task.chain.toLowerCase()];
         if (wethAddr) {
           const wethToken = new ethers.Contract(
@@ -157,12 +160,12 @@ export async function executeTask(
           if (wethBal === 0n) {
             throw new Error(`No WETH balance to unwrap on ${task.chain}`);
           }
-          if (wethBal < amount) {
-            amount = wethBal;
+          if (wethBal !== amount) {
             log.info(
-              `Adjusting unwrap amount to actual WETH balance: ${formatEth(amount)}`,
+              `Unwrapping full WETH balance: ${formatEth(wethBal)} (task amount was ${formatEth(amount)})`,
             );
           }
+          amount = wethBal;
         }
         txHash = await unwrapEth(signer, task.chain, amount);
         break;
@@ -259,6 +262,14 @@ export async function executeTask(
         const toChain = task.params.toChain as string;
         const amount = (task.params.amountWei as bigint) ?? DEFAULT_AMOUNT;
         txHash = await bridgeOrbiter(signer, task.chain, toChain, amount);
+        break;
+      }
+
+      case "bridge_relay": {
+        const signer = getSigner(task.chain, privateKey);
+        const toChain = task.params.toChain as string;
+        const amount = (task.params.amountWei as bigint) ?? DEFAULT_AMOUNT;
+        txHash = await bridgeViaRelay(signer, task.chain, toChain, amount);
         break;
       }
 
