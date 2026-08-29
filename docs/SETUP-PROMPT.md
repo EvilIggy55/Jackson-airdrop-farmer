@@ -382,11 +382,26 @@ How do you want to run the farmer?
 Grab the cheapest KVM plan at https://hostinger.com/lewisjackson10. Hostinger gives you a server IP and root password.
 
 **2. Connect and install:**
+
+Install Node from NodeSource, not from Ubuntu's own repo. `apt install nodejs`
+gives Node 18 on Ubuntu 24.04 — below the version 20 minimum in STEP 1 — and the
+farm fails on it:
+
 ```bash
 ssh root@YOUR_VPS_IP
-apt update && apt install -y nodejs npm git
+apt-get update
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs git
+npm install -g pm2 tsx
 git clone https://github.com/jackson-video-resources/Jackson-airdrop-farmer.git jackson-airdrop-farm
-cd jackson-airdrop-farm && npm install && npm install -g pm2
+cd jackson-airdrop-farm && npm install
+```
+
+Confirm the version before continuing — anything below v20 will fail later at a
+confusing point:
+
+```bash
+node --version
 ```
 
 **3. Put the key on the VPS by itself.** The Step 4 rule matters more on a
