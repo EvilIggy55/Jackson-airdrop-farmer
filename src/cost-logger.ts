@@ -4,6 +4,22 @@ import { log } from "./utils/logger.js";
 
 const DASHBOARD_URL = process.env.AIRDROP_CENTER_URL || "";
 
+// The dashboard is an optional integration. When it is unconfigured, say so
+// once per process rather than on every task -- gas costs are still recorded
+// on each TaskResult regardless of whether they are forwarded anywhere.
+let notifiedDisabled = false;
+
+function costLoggingDisabled(): boolean {
+  if (DASHBOARD_URL) return false;
+  if (!notifiedDisabled) {
+    notifiedDisabled = true;
+    log.info(
+      "Cost dashboard not configured (AIRDROP_CENTER_URL unset) — skipping cost logging"
+    );
+  }
+  return true;
+}
+
 interface CostPayload {
   walletLabel?: string;
   chain: string;
@@ -76,10 +92,7 @@ export async function getGasCost(
 
 /** Log a cost entry to the dashboard */
 export async function logCost(payload: CostPayload): Promise<void> {
-  if (!DASHBOARD_URL) {
-    log.warn("No AIRDROP_CENTER_URL set — skipping cost logging");
-    return;
-  }
+  if (costLoggingDisabled()) return;
 
   try {
     const res = await fetch(`${DASHBOARD_URL}/api/costs`, {
@@ -116,6 +129,9 @@ export async function logTaskCost(
   description?: string,
   cost?: GasCost
 ): Promise<void> {
+  // Bail before the receipt fetch so an unconfigured dashboard costs no RPC.
+  if (costLoggingDisabled()) return;
+
   const { gasEth, gasUsd } = cost ?? (await getGasCost(chain, txHash));
 
   await logCost({
