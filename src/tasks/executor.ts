@@ -34,7 +34,7 @@ import {
 } from "../utils/random.js";
 import { log } from "../utils/logger.js";
 import { formatEth } from "../utils/gas.js";
-import { logTaskCost } from "../cost-logger.js";
+import { logTaskCost, getGasCost } from "../cost-logger.js";
 import type { Task, TaskResult, FarmingSession } from "./types.js";
 
 /** Default amount in wei (0.001 ETH) */
@@ -384,18 +384,26 @@ export async function executeTask(
       task.type === "eigen_withdraw"
         ? "ethereum"
         : task.chain;
+    // Fetch the receipt once: the cost is both reported on the result and
+    // forwarded to the dashboard, so logTaskCost reuses it rather than
+    // re-fetching. Protocol helpers await tx.wait(), so it is already mined.
+    const cost = await getGasCost(taskChain, txHash);
+
     logTaskCost(
       taskChain,
       txHash,
       task.type,
       undefined,
       task.description,
+      cost,
     ).catch(() => {});
 
     return {
       task,
       success: true,
       txHash,
+      gasCostWei: cost.gasCostWei,
+      gasUsd: cost.gasUsd,
       timestamp: Date.now(),
     };
   } catch (err: unknown) {

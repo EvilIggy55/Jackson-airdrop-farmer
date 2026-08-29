@@ -41,15 +41,24 @@ async function getCachedEthPrice(): Promise<number> {
   return cachedPrice;
 }
 
+export interface GasCost {
+  /** Execution gas cost in wei (gasUsed x gasPrice) */
+  gasCostWei: bigint;
+  gasEth: string;
+  gasUsd: number;
+}
+
+const ZERO_COST: GasCost = { gasCostWei: 0n, gasEth: "0", gasUsd: 0 };
+
 /** Extract gas cost from a transaction receipt */
 export async function getGasCost(
   chain: string,
   txHash: string
-): Promise<{ gasEth: string; gasUsd: string }> {
+): Promise<GasCost> {
   try {
     const provider = getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt) return { gasEth: "0", gasUsd: "0" };
+    if (!receipt) return ZERO_COST;
 
     const gasUsed = receipt.gasUsed;
     const gasPrice = receipt.gasPrice ?? 0n;
@@ -57,13 +66,11 @@ export async function getGasCost(
     const gasEth = ethers.formatEther(gasCostWei);
 
     const ethPrice = await getCachedEthPrice();
-    const gasUsd = ethPrice > 0
-      ? (parseFloat(gasEth) * ethPrice).toFixed(4)
-      : "0";
+    const gasUsd = ethPrice > 0 ? parseFloat(gasEth) * ethPrice : 0;
 
-    return { gasEth, gasUsd };
+    return { gasCostWei, gasEth, gasUsd };
   } catch {
-    return { gasEth: "0", gasUsd: "0" };
+    return ZERO_COST;
   }
 }
 
@@ -96,15 +103,20 @@ export async function logCost(payload: CostPayload): Promise<void> {
   }
 }
 
-/** Log gas cost for a completed transaction to the dashboard */
+/**
+ * Log gas cost for a completed transaction to the dashboard.
+ * Pass `cost` when the caller has already fetched the receipt, to avoid a
+ * second `getTransactionReceipt` round-trip.
+ */
 export async function logTaskCost(
   chain: string,
   txHash: string,
   taskType: string,
   walletLabel?: string,
-  description?: string
+  description?: string,
+  cost?: GasCost
 ): Promise<void> {
-  const { gasEth, gasUsd } = await getGasCost(chain, txHash);
+  const { gasEth, gasUsd } = cost ?? (await getGasCost(chain, txHash));
 
   await logCost({
     walletLabel,
@@ -112,7 +124,7 @@ export async function logTaskCost(
     txHash,
     type: taskType,
     gasEth,
-    gasUsd,
+    gasUsd: gasUsd.toFixed(4),
     description,
   });
 }

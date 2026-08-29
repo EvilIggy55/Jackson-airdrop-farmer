@@ -410,6 +410,7 @@ async function main(): Promise<void> {
 
   let totalTasks = 0;
   let totalSuccess = 0;
+  let totalGasUsd = 0;
 
   for (let idx = 0; idx < selected.length; idx++) {
     const { wallet, chain } = selected[idx];
@@ -450,6 +451,7 @@ async function main(): Promise<void> {
 
       if (result.success) {
         totalSuccess++;
+        totalGasUsd += result.gasUsd ?? 0;
         log.success(
           `Task ${i + 1}/${tasks.length} completed ${result.txHash ? `(${result.txHash.slice(0, 14)}...)` : ""}`,
         );
@@ -497,6 +499,7 @@ async function main(): Promise<void> {
           totalTasks++;
           if (result.success) {
             totalSuccess++;
+            totalGasUsd += result.gasUsd ?? 0;
             log.success(
               `EigenLayer deposit completed ${result.txHash ? `(${result.txHash.slice(0, 14)}...)` : ""}`,
             );
@@ -517,7 +520,9 @@ async function main(): Promise<void> {
 
   // Send Telegram summary
   const chains = [...new Set(selected.map((s) => s.chain))];
-  await sendSessionSummary(totalTasks, totalSuccess, chains, 0).catch(() => {});
+  await sendSessionSummary(totalTasks, totalSuccess, chains, totalGasUsd).catch(
+    () => {},
+  );
 }
 
 main().catch((err) => {
